@@ -1,0 +1,242 @@
+\documentclass{IEEEtran}
+
+% ======================
+% Packages
+% ======================
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{float}
+
+\title{ECG Heartbeat Categorization}
+
+\author{
+    Pham Cong Duyet--23BI14136\\
+    ML in Medicine -- Practical Work 1\\
+    University of Science and Technology of Hanoi
+}
+
+\begin{document}
+
+\maketitle
+
+% ======================
+\section{Introduction}
+% ======================
+
+Electrocardiogram (ECG) signals are one of the most commonly used biomedical
+signals for monitoring cardiac activity and assessing the condition of the
+cardiovascular system. By recording the electrical behavior of the heart,
+ECG signals allow clinicians to identify abnormal heart rhythms and various
+cardiac disorders such as arrhythmias. However, the continuous acquisition
+of ECG data in both clinical and ambulatory settings produces a large volume
+of signals, making manual analysis labor-intensive and prone to subjective
+errors.
+
+With the rapid development of machine learning and deep learning techniques,
+automatic ECG signal analysis has gained increasing attention. These methods
+are capable of learning discriminative patterns directly from data and can
+assist medical professionals by providing reliable and consistent heartbeat
+classification.
+
+In this practical work, ECG heartbeat categorization is studied using a
+publicly available dataset from Kaggle. Two different approaches are
+implemented and compared: a traditional machine learning model based on
+Random Forest, and a deep learning model using a one-dimensional
+Convolutional Neural Network (1D-CNN). Special attention is paid to the
+problem of class imbalance, which is a common issue in medical datasets.
+The performance of the proposed methods is evaluated and compared with the
+results reported in the original reference paper.
+
+% ======================
+\section{Dataset Overview}
+% ======================
+
+The dataset used in this study is the ECG Heartbeat Categorization Dataset
+available on Kaggle. It is derived from the MIT-BIH Arrhythmia Database and
+contains preprocessed ECG heartbeats extracted from raw recordings.
+
+The dataset is divided into two subsets:
+\begin{itemize}
+    \item \textbf{Training set:} 87,554 samples.
+    \item \textbf{Testing set:} 21,892 samples.
+\end{itemize}
+
+Each sample corresponds to a single ECG heartbeat represented as a
+one-dimensional time-series vector of length 187. The last column of each
+sample indicates the class label. The heartbeats are categorized into five
+classes according to the AAMI standard:
+\begin{enumerate}
+    \item Normal
+    \item Supraventricular
+    \item Ventricular
+    \item Fusion
+    \item Unknown
+\end{enumerate}
+
+All ECG signals are normalized and padded to a fixed length, allowing them to
+be directly used as inputs for machine learning and deep learning models.
+
+% ======================
+\section{Class Distribution}
+% ======================
+
+An important characteristic of the training dataset is the significant class
+imbalance. The number of samples in each class is summarized as follows:
+\begin{itemize}
+    \item Normal: 72,471 samples
+    \item Supraventricular: 2,223 samples
+    \item Ventricular: 5,788 samples
+    \item Fusion: 641 samples
+    \item Unknown: 6,431 samples
+\end{itemize}
+
+As illustrated in Fig.~\ref{fig:class_dist}, the Normal class dominates the
+dataset, while Supraventricular and Fusion beats are relatively rare. This
+imbalance can negatively affect classification performance, especially for
+minority classes, and therefore must be considered during model training and
+evaluation.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.65\linewidth]{figure/Distri.png}
+    \caption{Class distribution of the training dataset, highlighting the
+    imbalance between different heartbeat categories.}
+    \label{fig:class_dist}
+\end{figure}
+
+% ======================
+\section{Methodology}
+% ======================
+
+\subsection{Approach 1: Random Forest with GridSearchCV}
+
+As a baseline machine learning method, a Random Forest classifier is
+implemented. Random Forest is an ensemble-based algorithm that combines
+multiple decision trees and is known for its robustness and good performance
+on structured data.
+
+To optimize the model, GridSearchCV is employed to search for the best
+hyperparameters. In order to reduce the impact of class imbalance during
+training, the weighted F1-score (\texttt{f1\_weighted}) is used as the
+optimization metric. The optimal parameters obtained through this process
+are:
+\begin{itemize}
+    \item Number of trees: 100
+    \item Maximum depth: None
+    \item Minimum samples split: 5
+\end{itemize}
+
+\subsection{Approach 2: 1D-CNN with SMOTE}
+
+To further improve classification performance, especially for minority
+classes, a deep learning approach based on a one-dimensional Convolutional
+Neural Network (1D-CNN) is adopted. Since ECG signals are temporal sequences,
+1D convolutions are well-suited for extracting local temporal features from
+heartbeats.
+
+Before training the CNN model, the Synthetic Minority Over-sampling
+Technique (SMOTE) is applied to the training data in order to balance the
+class distribution. By generating synthetic samples for underrepresented
+classes, SMOTE helps the model learn more representative decision boundaries.
+
+The CNN architecture consists of multiple convolutional and pooling layers,
+followed by fully connected layers and a softmax output layer for
+five-class classification.
+
+% ======================
+\section{Results}
+% ======================
+
+\subsection{Random Forest Performance}
+
+The Random Forest model achieves a test accuracy of \textbf{97.42\%}.
+Although the overall accuracy is high, the classification report reveals
+that the model struggles to correctly identify minority classes. In
+particular, the recall for Supraventricular and Fusion beats is relatively
+low, which can be attributed to the strong class imbalance in the dataset.
+\begin{table}[htbp]
+\caption{Random Forest Classification Report}
+\centering
+\begin{tabular}{lcccc}
+\hline
+Class & Precision & Recall & F1-score & Support \\
+\hline
+Normal & 0.97 & 1.00 & 0.99 & 18118 \\
+Supraventricular & 0.95 & 0.60 & 0.74 & 556 \\
+Ventricular & 0.98 & 0.89 & 0.93 & 1448 \\
+Fusion & 0.82 & 0.61 & 0.70 & 162 \\
+Unknown & 1.00 & 0.95 & 0.97 & 1608 \\
+\hline
+Accuracy &  &  & 0.97 & 21892 \\
+Weighted Avg & 0.97 & 0.97 & 0.97 & 21892 \\
+\hline
+\end{tabular}
+\label{tab:rf_report}
+\end{table}
+
+The confusion matrix for the Random Forest model is shown in
+Fig.~\ref{fig:rf_cm}, illustrating frequent misclassification of rare
+heartbeat categories.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\linewidth]{figure/rfs.png}
+    \caption{Confusion matrix of the Random Forest model.}
+    \label{fig:rf_cm}
+\end{figure}
+
+\subsection{CNN Performance with SMOTE}
+
+After applying SMOTE and training the 1D-CNN model, the test accuracy
+increases to \textbf{98.36\%}. More importantly, the recall for minority
+classes improves significantly. For example, the recall of
+Supraventricular beats increases from approximately 0.60 to 0.82, and the
+recall of Fusion beats increases from approximately 0.61 to 0.83.
+\begin{table}[htbp]
+\caption{Random Forest Classification Report}
+\centering
+\begin{tabular}{lcccc}
+\hline
+Class & Precision & Recall & F1-score & Support \\
+\hline
+Normal & 0.97 & 1.00 & 0.99 & 18118 \\
+Supraventricular & 0.95 & 0.60 & 0.74 & 556 \\
+Ventricular & 0.98 & 0.89 & 0.93 & 1448 \\
+Fusion & 0.82 & 0.61 & 0.70 & 162 \\
+Unknown & 1.00 & 0.95 & 0.97 & 1608 \\
+\hline
+Accuracy &  &  & 0.97 & 21892 \\
+Weighted Avg & 0.97 & 0.97 & 0.97 & 21892 \\
+\hline
+\end{tabular}
+\label{tab:rf_report}
+\end{table}
+
+The confusion matrix of the CNN model, presented in
+Fig.~\ref{fig:cnn_cm}, confirms that the CNN combined with SMOTE provides
+better discrimination across all heartbeat categories.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\linewidth]{figure/cnn.png}
+    \caption{Confusion matrix of the CNN model trained with SMOTE.}
+    \label{fig:cnn_cm}
+\end{figure}
+
+% ======================
+\section{Conclusion}
+% ======================
+
+In this practical work, ECG heartbeat categorization is addressed using both
+traditional machine learning and deep learning approaches. While the Random
+Forest model achieves strong overall accuracy, it shows clear limitations in
+detecting rare heartbeat classes due to data imbalance. By applying SMOTE
+and using a 1D-CNN architecture, both the overall accuracy and the recall of
+minority classes are significantly improved.
+
+These results highlight the importance of handling class imbalance when
+designing machine learning systems for medical applications and demonstrate
+the effectiveness of deep learning methods for ECG signal classification.
+
+\bibliographystyle{IEEEtran}
+\end{document}
