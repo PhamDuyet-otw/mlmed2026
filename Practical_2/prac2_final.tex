@@ -1,0 +1,116 @@
+\documentclass{IEEEtran}
+
+% ======================
+% Packages
+% ======================
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage{subcaption}
+\title{Fetal Head Circumference Estimation}
+
+\author{
+    Pham Cong Duyet--23BI14136\\
+    ML in Medicine -- Practical Work 2\\
+    University of Science and Technology of Hanoi
+}
+
+\begin{document}
+\maketitle
+\section{Introduction}
+
+Ultrasound is a common medical imaging method because it is safe and easy to use. In pregnancy care, fetal head circumference (HC) is an important measurement to assess fetal growth. Measuring HC manually from ultrasound images can be time-consuming and may lead to different results between observers. In this practical work, I explore the HC18 dataset and build a machine learning model to automatically estimate fetal head circumference using a regression approach.
+\section{Dataset Description}
+We utilize the HC18 dataset, which consists of \textbf{999 ultrasound scans} for regression analysis. The target head circumference (HC) values range from 50 mm to 350 mm. Despite standardized image contrast, the dataset presents three primary characteristics and challenges:
+
+\begin{itemize}
+    \item \textbf{Data Distribution:} The HC values are not uniformly distributed. There are significant peaks (multimodal distribution), with the majority of samples concentrated around 170 mm.
+    \item \textbf{Image Quality:} The scans contain varying levels of speckle noise and acoustic shadows, common in ultrasound imaging.
+    \item \textbf{Boundary Ambiguity:} High variation in fetal head orientation and low contrast at the skull edges make precise feature extraction difficult.
+\end{itemize}
+
+% --- BẮT ĐẦU CHÈN HÌNH SAU DANH SÁCH ---
+\begin{figure}[htbp] % 'htbp' để LaTeX tự chọn vị trí tốt nhất (ưu tiên tại chỗ)
+    \centering
+    
+    % Hình A: Ảnh mẫu
+    \begin{subfigure}[b]{0.75\linewidth} % Dùng \linewidth để ảnh tự co giãn theo bề ngang cột
+        \centering
+        \includegraphics[width=\textwidth]{figure/sample.png} 
+        \caption{Ultrasound samples with HC annotations}
+        \label{fig:samples}
+    \end{subfigure}
+    
+    \vspace{0.4cm} % Khoảng cách giữa 2 hình cho thoáng mắt
+
+    \caption{Visual overview of the HC18 dataset. Illustrates the speckle noise and visual diversity in ultrasound scans.}
+    \label{fig:dataset_overview}
+\end{figure}
+\section{Methodology}
+\subsection{Feature Extraction}
+The annotation masks were first preprocessed to ensure quality. I applied morphological operations, including binary opening (disk size 1) and binary closing (disk size 2), followed by removing small objects (under 30 pixels) to eliminate noise.
+
+Using the \texttt{skimage.measure.regionprops} library, I extracted key geometric features. All spatial measurements were converted from pixels to millimeters (mm) using the provided pixel size data. The features include:
+
+\textbf{Size Measurements:}
+\begin{itemize}
+    \item Area ($mm^2$) and Perimeter ($mm$)
+    \item Bounding box width and height ($mm$)
+    \item Major and Minor axis lengths of the fitted ellipse ($mm$)
+\end{itemize}
+
+\textbf{Shape Descriptors:}
+\begin{itemize}
+    \item \textbf{Eccentricity:} Measures how much the shape deviates from a perfect circle.
+    \item \textbf{Solidity:} The ratio of the contour area to its convex hull area.
+    \item \textbf{Extent:} The ratio of the contour area to the bounding box area.
+    \item \textbf{Orientation:} The angle of the major axis.
+\end{itemize}
+
+\subsection{Model Training}
+I selected the \textbf{Random Forest Regressor} for this task due to its ability to handle non-linear relationships and its robustness to noise. The dataset was split into a training set (80\%) and a hold-out validation set (20\%) to evaluate performance.
+
+To find the optimal configuration, I performed hyperparameter tuning using \textbf{RandomizedSearchCV} with 5-fold cross-validation. The search space included:
+
+\begin{itemize}
+    \item \textbf{n\_estimators:} [200, 500, 800, 1200]
+    \item \textbf{max\_depth:} [None, 10, 20, 30, 40]
+    \item \textbf{max\_features:} ['sqrt', 'log2', 0.7, 0.9]
+    \item \textbf{min\_samples\_split:} [2, 5, 10, 20]
+    \item \textbf{min\_samples\_leaf:} [1, 2, 4, 8]
+\end{itemize}
+
+The model was optimized to minimize the Mean Absolute Error (MAE). After finding the best parameters, I evaluated the model on the hold-out set to calculate the final MAE and $R^2$ score.
+\section{Results}
+
+\subsection{Hyperparameter Optimization}
+Through RandomizedSearchCV, the optimal hyperparameters for the Random Forest Regressor were identified. The best configuration that minimized the Mean Absolute Error (MAE) is listed below:
+\begin{itemize}
+    \item \textbf{n\_estimators:} 200
+    \item \textbf{max\_depth:} 10
+    \item \textbf{max\_features:} 0.9
+    \item \textbf{min\_samples\_split:} 2
+    \item \textbf{min\_samples\_leaf:} 2
+\end{itemize}
+
+\subsection{Model Performance}
+The quantitative performance of the optimized model on the hold-out validation set is summarized in Table \ref{tab:results}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Performance Metrics on Validation Set}
+    \label{tab:results}
+    \begin{tabular}{lc}
+        \textbf{Metric} & \textbf{Value} \\
+        Best CV MAE & 7.38 mm \\
+        Hold-out MAE & 7.83 mm \\
+        Coefficient of Determination ($R^2$) & 0.97 \\
+    \end{tabular}
+\end{table}
+\subsection{Comparison with State-of-the-Art}
+As shown in the leaderboard data, the top-performing algorithms achieve an MAE between 0.74 mm and 1.74 mm. It is important to note that these solutions utilize advanced Deep Learning architectures, specifically segmentation models like nnU-Net and Attention U-Net (MAE 7.83 mm) yields a higher error compared to these Deep Learning methods, it is significantly more lightweight and requires less computational power to train. The gap in performance highlights the difference between regressing HC from simple geometric descriptors versus performing pixel-level semantic segmentation.
+\section{Conclusion}
+The proposed Random Forest model achieved a Mean Absolute Error of 7.83 mm and an R2 score of 0.97 on the validation set. These results confirm that geometric features extracted from ultrasound masks are reliable predictors of fetal head circumference.
+
+Although this method yields a higher error compared to state-of-the-art Deep Learning models (MAE ~1.7 mm), it remains a viable solution due to its low computational cost and high interpretability. Future work will focus on refining the feature extraction process to further improve prediction accuracy.
+\end{document}
