@@ -1,0 +1,184 @@
+\documentclass{IEEEtran}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{url}
+\usepackage{multirow}
+\usepackage{booktabs}
+
+\title{COVID-19 Infection Segmentation}
+\author{
+Pham Cong Duyet -- 23BI14136\\
+Machine Learning in Medicine -- Practical Work 3\\
+University of Science and Technology of Hanoi
+}
+\begin{document}
+\maketitle
+\section{Exploratory Data Analysis}
+\subsection{Dataset Overview}
+The research uses the COVID-QU-Ex dataset, which was created by researchers at Qatar University. This is currently the largest lung mask dataset available for medical studies. It contains a total of 33,920 chest X-ray images, including 11,956 COVID-19 cases, 11,263 non-COVID infections like pneumonia, and 10,701 normal cases.
+\subsection{Training and Test Sets}
+The experiments are conducted on two different data groups, each divided into training, validation, and test sets:
+\begin{itemize}
+    \item Lung Segmentation Data: This includes all 33,920 images with their corresponding lung masks.
+    \item Infection Segmentation Data: This is a smaller subset of 5,826 images. It includes COVID-19 samples with both lung and infection masks, while the normal and non-COVID samples provide lung masks.
+\end{itemize}
+
+\subsection{Class Distribution}
+The tables below show how the images are distributed across different categories and sets.
+
+\renewcommand{\arraystretch}{1.2}
+\begin{table}[h]
+\centering
+\caption{DATA DISTRIBUTION OF THE INFECTION SEGMENTATION SUBSET}
+\label{tab:infection_distribution}
+\begin{tabular}{l l c c c}
+\toprule
+\textbf{Split} & \textbf{Class} & \textbf{Images} & \textbf{Lung Masks} & \textbf{Infection Masks} \\
+\midrule
+Train & COVID-19  & 1864 & 1864 & 1864 \\
+Train & Non-COVID & 932  & 932  & 932  \\
+Train & Normal    & 932  & 932  & 932  \\
+\midrule
+Validation & COVID-19  & 466 & 466 & 466 \\
+Validation & Non-COVID & 233 & 233 & 233 \\
+Validation & Normal    & 233 & 233 & 233 \\
+\midrule
+Test & COVID-19  & 583 & 583 & 583 \\
+Test & Non-COVID & 292 & 292 & 292 \\
+Test & Normal    & 291 & 291 & 291 \\
+\midrule
+Total & COVID-19  & 2913 & 2913 & 2913 \\
+Total & Non-COVID & 1457& 1457 & 1457 \\
+Total & Normal    & 1456 & 1456 & 1456 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The infection segmentation subset has a balanced partition. This ensures the model is evaluated fairly and helps reduce any potential bias during training.
+
+
+\begin{table}[h]
+\centering
+\caption{DATA DISTRIBUTION OF THE LUNG SEGMENTATION DATASET}
+\label{tab:lung_distribution}
+\begin{tabular}{l l c c}
+\toprule
+\textbf{Split} & \textbf{Class} & \textbf{Images} & \textbf{Lung Masks} \\
+\midrule
+Train & COVID-19  & 7658 & 7658 \\
+Train & Non-COVID & 7208 & 7208 \\
+Train & Normal    & 6849 & 6849 \\
+\midrule
+Validation & COVID-19  & 1903 & 1903 \\
+Validation & Non-COVID & 1802 & 1802 \\
+Validation & Normal    & 1712 & 1712 \\
+\midrule
+Test & COVID-19  & 2395 & 2395 \\
+Test & Non-COVID & 2253 & 2253 \\
+Test & Normal    & 2140 & 2140 \\
+\midrule
+Total & COVID-19  & 11956 & 11956 \\
+Total & Non-COVID & 11263 & 11263 \\
+Total & Normal    & 10701 & 10701 \\
+Total & All& 33920}& 33920 \\
+\bottomrule
+\end{tabular}
+\end{table}
+\section{Methodology}
+The proposed method follow a two-stage segmentation process to accurately identify lung areas and COVID-19 infection regions from chest X-ray images. The pipeline is built using the PyTorch framework
+\subsection{Preprocessing and Data Augmentation}
+All images and masks are resized to 128x128 pixels to reduce computational cost. To improve the model's ability,some data augmentation techniques are applied during the training phase. These include horizontal flipping, random rotation, and brightness adjustments. All pixel values are normalized to a range of [0, 1].
+
+\subsection{Model Architecture: TinyUNet}
+The model is specifically designed to operate under limited computational resources,because the training process was by google colab.
+To reduce model complexity, TinyUNet replaces standard convolutions with depthwise separable convolutions.The model contains approximately $9.9\times10^{4}$ parameters,
+
+The network follows the classical encoder--decoder structure of U-Net. The encoder path extracts hierarchical contextual features, while the symmetric decoder path progressively recovers spatial resolution for accurate pixel-level segmentation. Skip connections are employed between corresponding encoder and decoder layers to retain fine-grained spatial information and improve localization accuracy.
+
+
+\subsection{Two-Stage Segmentation Strategy}
+The segmentation process is divided into two distinct stages:
+
+\begin{itemize}
+    \item Stage A (Lung Segmentation): In this stage, the model is trained to identify the boundary of the lungs from the original X-ray images. This creates a lung mask that filters out background information like bones or other organs.
+    \item Stage B (Infection Segmentation): This stage focuses on identifying the specific areas of infection. The input for this stage is the original image multiplied by the lung mask (Region of Interest - ROI). By focusing only on the lung area, the model can more accurately detect COVID-19 infections.
+\end{itemize}
+
+\subsection{Training and Evaluation}
+The models are trained using a combination of Binary Cross-Entropy (BCE) and Dice loss functions. The Adam optimizer is used with a learning rate of 0.001. To evaluate the performance, the Dice coefficient and Intersection-over-Union (IoU) metrics are calculated on the test set.
+\section{Results}
+\subsection{Stage A: Lung Segmentation}
+Stage A demonstrated strong performance in lung boundary localization. On the test set, the model achieved a Dice score of 0.9683 and an IoU of 0.9406.
+The quantitative results for Stage A are summarized in Table~\ref{tab:results_stage_a}.
+
+\begin{table}[h]
+\centering
+\caption{Performance metrics for Stage A }
+\label{tab:results_stage_a}
+\begin{tabular}{l c c}
+\toprule
+Loss (BCE) & Dice & IoU \\
+\midrule
+0.0360 & 0.9683 & 0.9406 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\columnwidth]{output1.png}
+    \caption{Qualitative lung segmentation results on the test set.}
+    \label{fig:sample_stage_a}
+\end{figure}
+
+\subsection{Stage B: Infection Segmentation} 
+The proposed model achieved promising performance on the test set, with a Dice score of 0.8277 and an IoU of 0.7689.
+
+Compared to Stage A, the higher loss value reflects the increased difficulty of accurately segmenting infection regions. Overall, these results demonstrate the effectiveness of the two-stage framework, where precise lung localization in Stage A supports improved infection segmentation in Stage B.
+
+The test performance for Stage B is reported in Table~\ref{tab:results_stage_b}.
+
+\begin{table}[!t]
+\centering
+\caption{Performance metrics for Stage B (Infection Segmentation) on the test set}
+\label{tab:results_stage_b}
+\begin{tabular}{l c c}
+\toprule
+Loss (BCE) & Dice & IoU \\
+\midrule
+0.0621 & 0.8277 & 0.7689 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{output2.png}
+    \caption{Qualitative infection segmentation results on the test set.}
+    \label{fig:sample_stage_b}
+\end{figure}
+\clearpage % Bắt đầu một trang mới và đẩy các float cũ đi
+
+\subsection{Comparison}
+
+Table~\ref{tab:comparison} summarizes representative segmentation performances reported in the literature for COVID-19 lung and infection segmentation. Relevant metrics such as Dice coefficient and IoU are used for comparison with the proposed TinyUNet.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Comparison with representative segmentation methods}
+\label{tab:comparison}
+\begin{tabular}{l c c c}
+\toprule
+Method & Modality & Dice & IoU \\
+\midrule
+Attention U-Net& CT & 0.784 & 0.827 \\
+3D U-Net & CT & 0.761 & -- \\
+U-Net (2D baseline) & CXR & -- & 0.748 \\
+\textbf{TinyUNet} & CXR & \textbf{0.828} & \textbf{0.769} \\
+\bottomrule
+\end{tabular}
+\end{table}
+\section{Conclusion}
+Because of limited computational resources and the use of a compact model design, the segmentation accuracy for infection regions remains lower than that of larger state-of-the-art architectures. Despite this limitation, the proposed approach provides a reasonable trade-off between performance and efficiency, making it suitable for practical scenarios where computational resources are constrained.
+\end{document}
