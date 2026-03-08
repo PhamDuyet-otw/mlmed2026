@@ -1,0 +1,123 @@
+\documentclass{IEEEtran}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage{subcaption}
+\title{Lung Nodule Detection}
+
+\author{
+    Pham Cong Duyet--23BI14136\\
+    ML in Medicine -- Practical Work 4\\
+    University of Science and Technology of Hanoi
+}
+\begin{document}
+\maketitle
+
+\section{Introduction}
+Lung cancer is one of the most serious diseases in the world. Early detection of pulmonary nodules in CT scans is very important for diagnosis and treatment. However, analyzing CT images manually is difficult because CT scans are 3D volumes and contain a large amount of data.
+In this practical assignment, we work on pulmonary nodule detection using the LUNA16 dataset. The task is to detect nodules in 3D chest CT scans. 
+The main objective of this work is to reduce false positives while keeping high sensitivity. This approach helps improve the overall detection performance in CT scans.
+\section{Dataset}
+\subsection{Overview}
+In this practical, we use the LUNA16 dataset.The dataset contains 888 CT scans. These scans are low-dose chest CT images from high-risk patients.
+The dataset is divided into 10 subsets (subset0 to subset9). These subsets are used for 10-fold cross-validation.
+\subsection{Image Format}
+CT images are stored in MetaImage format (.mhd and .raw). The .mhd file contains metadata, and the .raw file contains the pixel data.
+Each CT scan is a 3D volume composed of many 2D axial slices.
+\subsection{Annotations}
+The file \texttt{annotations.csv} contains the reference standard for nodule detection. Each row includes:
+\begin{itemize}
+    \item The scan ID (SeriesInstanceUID)
+    \item The x, y, z coordinates in world space (mm)
+    \item The nodule diameter in millimeters
+\end{itemize}
+The reference standard includes 1186 nodules. These nodules are larger than or equal to 3 mm and were confirmed by at least 3 out of 4 radiologists.
+\subsection{Candidates}
+The file \texttt{candidates.csv} provides candidate locations for the false positive reduction task. Each row contains:
+\begin{itemize}
+    \item The scan ID
+    \item The x, y, z coordinates in world space
+    \item The class label (1 for nodule, 0 for non-nodule)
+\end{itemize}
+
+This candidate list was created by combining several automatic detection algorithms. It detects 1166 out of 1186 nodules. There can be multiple candidates for one nodule.
+
+In our work, we use this file to train a 3D CNN model for false positive reduction.
+\section{Methodology}
+
+\subsection{Dataset Preparation and Balancing}
+We used the LUNA16 dataset, specifically focusing on subset0, subset1, and subset2. First, we read the \texttt{candidates.csv} file, which provides the coordinates of potential nodules and their true labels (1 for a true nodule, 0 for a non-nodule). Because the dataset is highly imbalanced with a massive number of negative samples, we performed a data balancing step. We kept all the positive samples and randomly selected negative samples to achieve a 1:5 ratio 
+
+\subsection{Data Preprocessing}
+Working with medical CT scans requires specific preprocessing because they use physical measurements. We used the \texttt{SimpleITK} library to read the \texttt{.mhd} image files.
+\begin{itemize}
+    \item \textbf{Coordinate Transformation:} The locations in the CSV file are given in real-world coordinates (millimeters). We mathematically converted these into voxel coordinates (pixels) by using the origin and spacing information from each specific CT scan.
+    \item \textbf{Volumetric Patch Extraction:} For each candidate point, we extracted a 3D volume (patch) with a fixed size of 32x32x32 voxels. If a candidate was located near the edge of the scan, we applied padding with a constant value of -1000 to maintain the exact 32x32x32 shape.
+    \item \textbf{Hounsfield Unit (HU) Normalization:} CT scans use Hounsfield Units to measure tissue density. We clipped the HU values between -1000 and 400 to focus specifically on lung structures and remove irrelevant noise. Finally, we normalized these clipped values to a scale between 0.0 and 1.0.
+\end{itemize}
+
+\subsection{3D CNN Architecture}
+To process the volumetric data, we designed a custom \texttt{Simple3DCNN} model using the PyTorch framework. 
+% You can insert an image of the 3D CNN architecture here using \includegraphics
+\begin{itemize}
+    \item \textbf{Feature Extraction:} The network contains three 3D convolutional blocks. Each block consists of a \texttt{Conv3d} layer (with a kernel size of 3 and padding of 1), followed by Batch Normalization to stabilize training, a ReLU activation function, and a \texttt{MaxPool3d} layer to reduce the spatial dimensions by half. As the data passes through these blocks, the spatial size decreases (from 32 to 16, 8, and 4), while the number of feature channels increases from 1 to 16, 32, and finally 64.
+    \item \textbf{Classification Head:} The extracted 3D features are flattened into a 1D vector. This vector is passed through a fully connected (Linear) layer with 128 units and a ReLU activation. We applied a Dropout layer with a rate of 0.3 to randomly deactivate neurons, which helps prevent the model from memorizing the training data (overfitting). The final output layer provides a single raw value for classification.
+\end{itemize}
+
+\subsection{Model Training}
+We divided our prepared dataset into a training set (70\%), a validation set (15\%) and a test set (15%).
+\begin{itemize}
+    \item We used the Adam optimizer with a learning rate of 0.001 and processed the data in batches of 32.
+    \item For the loss function, we selected \texttt{BCEWithLogitsLoss}. To handle the remaining 1:5 class imbalance, we calculated a positive weight (\texttt{pos\_weight}) representing the ratio of negative to positive samples in the training set and added it to the loss function. This forces the model to pay more attention to the rare positive cases.
+    \item The model was trained for 10 epochs. After every epoch, we evaluated its performance on the validation set by calculating Accuracy, Precision, Recall, and the F1-score.
+\end{itemize}
+\section{Results}
+To find the most optimal training configuration, we experimented with different learning rates (\texttt{lr}) while keeping the batch size at 32 and training for 8 epochs. The performance of each configuration was evaluated on the test set using a default classification threshold of 0.5. The results are compared in Table \ref{tab:lr_tuning}.
+
+\begin{table}[h]
+    \centering
+    \resizebox{\columnwidth}{!}{%
+        \begin{tabular}{|l|c|c|c|c|}
+            \hline
+            \textbf{Learning Rate} & \textbf{Accuracy (\%)} & \textbf{Precision (\%)} & \textbf{Recall (\%)} & \textbf{F1-Score (\%)} \\
+            \hline
+            1e-3 & \textbf{91.35} & 72.83 & 77.01 & \textbf{74.86} \\
+            3e-4 & 91.35 & \textbf{76.92} & 68.97 & 72.73 \\
+            1e-4 & 85.19 & 53.68 & \textbf{83.91} & 65.47 \\
+            \hline
+        \end{tabular}%
+    }
+    \caption{Comparison of model performance with different learning rates.}
+    \label{tab:lr_tuning}
+\end{table}
+
+As shown in Table \ref{tab:lr_tuning}, the learning rate of \texttt{1e-3} yielded the highest F1-score (74.86\%) and a good balance between Precision and Recall. Lowering the learning rate to \texttt{1e-4} significantly increased the Recall but caused a severe drop in Precision, leading to the lowest overall F1-score. Therefore, \texttt{1e-3} was selected as the optimal learning rate for our final model.
+
+\subsection{Decision Threshold Experiment}
+In medical imaging, adjusting the classification threshold can help prioritize sensitivity (Recall) over precision or vice versa. We took our best-trained model and tested it with three different probability thresholds: 0.3, 0.5, and 0.7. The comparison is detailed in Table \ref{tab:thresholds}.
+
+\begin{table}[h]
+    \centering
+    \resizebox{\columnwidth}{!}{%
+        \begin{tabular}{|c|c|c|c|c|}
+            \hline
+            \textbf{Threshold} & \textbf{Accuracy (\%)} & \textbf{Precision (\%)} & \textbf{Recall (\%)} & \textbf{F1-Score (\%)} \\
+            \hline
+            0.3 & 89.04 & 62.71 & \textbf{85.06} & 72.20 \\
+            0.5 & 90.19 & 67.31 & 80.46 & 73.30 \\
+            0.7 & \textbf{92.12} & \textbf{82.86} & 66.67 & \textbf{73.89} \\
+            \hline
+        \end{tabular}%
+    }
+    \caption{Impact of different probability thresholds on the best model's predictions.}
+    \label{tab:thresholds}
+\end{table}
+
+The results indicate a clear trade-off. A lower threshold (0.3) makes the model more sensitive, capturing 85.06\% of actual nodules but generating more false positives (lower Precision). On the other hand, a strict threshold (0.7) maximizes Precision (82.86\%) and overall Accuracy, but misses more actual nodules (lower Recall). Depending on the specific clinical requirement (e.g., minimizing missed tumors vs. minimizing false alarms), the threshold can be adjusted accordingly.
+\section{Discussion}
+In this study, we implemented a 3D CNN to classify candidate regions in CT scans as nodules or non-nodules, achieving high accuracy and a solid precision-recall balance. Our experiments highlighted two key tuning factors: a learning rate of 1e-3 yielded the highest F1-score, and adjusting the decision threshold revealed a classic trade-off where lower thresholds boost recall (increasing false positives) while higher thresholds favor precision. The optimal threshold ultimately depends on specific clinical objectives.
+The volumetric nature of CT scans makes 3D CNNs particularly effective for capturing spatial patterns across multiple slices. However, this work has two main limitations: the model was trained on a small subset of the LUNA16 dataset, and it relies on pre-generated candidate patches rather than performing end-to-end full volume detection. 
+Future work will focus on utilizing the full dataset with proper cross-validation, applying data augmentation, and exploring deeper architectures or advanced frameworks (e.g., 3D Faster R-CNN or U-Net) to enhance overall robustness and detection performance.
+\section{Conclusion}
+This study demonstrates that a 3D CNN can effectively classify lung nodules from CT scans, achieving a strong precision-recall balance through optimal hyperparameter tuning. Although currently limited by a patch-based approach and a small data subset, this work provides a solid foundation. Future research will focus on full-volume detection frameworks and comprehensive datasets to enhance the clinical applicability of the model.
+\end{document}
